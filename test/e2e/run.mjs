@@ -141,7 +141,11 @@ async function main() {
     assert.match(html, /claude\.ai/);
     assert.ok(!html.includes("<script>alert(1)</script>"), "client name must be escaped");
     assert.ok(field(html, "handle"));
-    step("sign-in page shows the app and redirect host, escaped");
+    // Browsers apply form-action to the redirect after submit, so the app's origin must be allowed.
+    const csp = (await fetch(`${WORKER}/authorize?${new URLSearchParams({ response_type: "code", client_id: client.client_id, redirect_uri: REDIRECT, code_challenge: "x".repeat(43), code_challenge_method: "S256", state: "s", resource: `${WORKER}/mcp` })}`)).headers.get("content-security-policy");
+    assert.match(csp, /form-action 'self' https:\/\/claude\.ai;/);
+    assert.match(csp, /frame-ancestors 'none'/);
+    step("sign-in page shows the app and redirect host, escaped; CSP allows the redirect back");
 
     // 5. A wrong key is refused and the page comes back with an error
     let r = await submit(jar, html, { decision: "approve", api_key: "cak_wrong_key_0000000000000000" });

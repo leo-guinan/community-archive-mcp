@@ -84,7 +84,11 @@ async function showAuthorize(request: Request, env: Env, error?: string): Promis
   const facts = await oauth.describeConsent(authReq);
   const consent = await oauth.beginConsent(authReq);
   const query = new URL(request.url).search.replace(/^\?/, "");
-  return html(authorizePage({ facts, handle: consent.handle, query, error }), error ? 400 : 200, consent.headers);
+  // The form's 302 goes to the app's redirect URI; CSP form-action must allow that origin
+  // (http(s) origin, or the scheme alone for a native app's private-use scheme).
+  const target = new URL(authReq.redirectUri);
+  const formTarget = target.protocol === "http:" || target.protocol === "https:" ? target.origin : target.protocol;
+  return html(authorizePage({ facts, handle: consent.handle, query, error }), error ? 400 : 200, consent.headers, [formTarget]);
 }
 
 async function submitAuthorize(request: Request, env: Env): Promise<Response> {

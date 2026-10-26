@@ -35,8 +35,12 @@ table{border-collapse:collapse;width:100%;font-size:14px}td{border-top:1px solid
 .tablewrap{overflow-x:auto}
 `;
 
-export const PAGE_CSP =
-  "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
+/** formTargets: extra origins the form may end up at after redirects (the app's validated redirect URI). */
+export function pageCsp(formTargets: string[] = []): string {
+  const targets = ["'self'", ...formTargets.filter((t) => /^[a-z][a-z0-9+.-]*:(\/\/[^\s;,']+)?$/i.test(t))].join(" ");
+  return `default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; form-action ${targets}; frame-ancestors 'none'; base-uri 'none'`;
+}
+export const PAGE_CSP = pageCsp();
 
 export function layout(title: string, body: string): string {
   return `<!doctype html>
@@ -46,10 +50,10 @@ export function layout(title: string, body: string): string {
 <body><main>${body}</main></body></html>`;
 }
 
-export function html(body: string, status = 200, extra?: Headers): Response {
+export function html(body: string, status = 200, extra?: Headers, formTargets: string[] = []): Response {
   const h = extra ?? new Headers();
   h.set("Content-Type", "text/html; charset=utf-8");
-  h.set("Content-Security-Policy", PAGE_CSP);
+  h.set("Content-Security-Policy", pageCsp(formTargets));
   h.set("X-Content-Type-Options", "nosniff");
   h.set("Referrer-Policy", "no-referrer");
   if (!h.has("Cache-Control")) h.set("Cache-Control", "no-store");
