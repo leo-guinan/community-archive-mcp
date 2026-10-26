@@ -2,8 +2,8 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CommunityArchiveClient, loadDotEnv } from "./client.js";
-import { buildServer } from "./server.js";
+import { CommunityArchiveClient, loadDotEnv } from "./core/client.js";
+import { buildServer } from "./core/server.js";
 
 function resolveKey(): string {
   const direct = process.env.CA_API_KEY ?? process.env.COMMUNITY_ARCHIVE_API_KEY;

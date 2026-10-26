@@ -40,7 +40,16 @@ function normAccount(a: string) {
 }
 
 export function buildServer(c: CommunityArchiveClient) {
-  const s = new McpServer({ name: "community-archive", version: "0.1.0" });
+  const s = new McpServer(
+    { name: "community-archive", version: "0.2.0", title: "Community Archive" },
+    {
+      instructions:
+        "Read-only access to the Community Archive, an open database of uploaded Twitter/X archives. " +
+        "Use ca_search_tweets or ca_first_said to find tweets, ca_find_people to resolve a person from a partial name, " +
+        "and ca_receipt to cite a tweet with its exact text, date, permalink and hash. Tweet IDs are strings. " +
+        "Results only cover people who uploaded their archive; absence from the archive is not evidence that something was never said.",
+    },
+  );
 
   // ---------------- API v1, one tool per route family ----------------
 

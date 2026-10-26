@@ -1,0 +1,42 @@
+{
+  // Hosted Community Archive connector. Deploy: see DEPLOY.md.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "community-archive-mcp",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  // nodejs_compat: the shared core hashes receipts with node:crypto.
+  // global_fetch_strictly_public: required by the OAuth library when it fetches Client ID Metadata Documents.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "kv_namespaces": [
+    // Replace the id with the one `wrangler kv namespace create OAUTH_KV` prints.
+    { "binding": "OAUTH_KV", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }
+  ],
+  "vars": {
+    "PUBLIC_URL": "https://community-archive-mcp.REPLACE.workers.dev",
+    "CA_API_BASE_URL": "https://analytics.community-archive.org/v1",
+    "ALLOW_DIRECT_KEYS": "true",
+    "OPERATOR": "REPLACE_WITH_OPERATOR_NAME",
+    "CONTACT": "REPLACE_WITH_CONTACT_EMAIL",
+    "REPO_URL": ""
+  },
+  // Daily cleanup of expired grants, tokens and client registrations.
+  "triggers": { "crons": ["17 7 * * *"] },
+  "observability": { "enabled": true },
+  "env": {
+    // Local end-to-end tests against a mock archive API (no internet, no CIMD).
+    "test": {
+      "compatibility_flags": ["nodejs_compat"],
+      "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "local-test" }],
+      "vars": {
+        "PUBLIC_URL": "http://localhost:8799",
+        "CA_API_BASE_URL": "http://127.0.0.1:8798/v1",
+        "ALLOW_DIRECT_KEYS": "true",
+        "ENABLE_CIMD": "false",
+        "OPERATOR": "Test operator",
+        "CONTACT": "test@example.com",
+        "REPO_URL": ""
+      },
+      "triggers": { "crons": [] }
+    }
+  }
+}

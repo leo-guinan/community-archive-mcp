@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { CommunityArchiveClient, loadDotEnv } from "../dist/client.js";
-import { buildServer } from "../dist/server.js";
-import { resetMemberCache } from "../dist/extensions.js";
+import { CommunityArchiveClient, loadDotEnv } from "../dist/core/client.js";
+import { buildServer } from "../dist/core/server.js";
+import { resetMemberCache } from "../dist/core/extensions.js";
 
 // ---- fixture archive ----
 const T = (id, user, created_at, full_text, extra = {}) => ({

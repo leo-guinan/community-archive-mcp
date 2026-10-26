@@ -37,6 +37,9 @@ export interface ClientOptions {
   cacheMax?: number;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
+  /** Share a response cache across client instances (archive data is the same for every key). */
+  cache?: Map<string, { at: number; value: Page }>;
+  userAgent?: string;
 }
 
 type Params = Record<string, string | number | boolean | undefined | null>;
@@ -57,7 +60,8 @@ export class CommunityArchiveClient {
   private stamps: number[] = [];
   private inFlight = 0;
   private waiters: Array<() => void> = [];
-  private cache = new Map<string, { at: number; value: Page }>();
+  private cache: Map<string, { at: number; value: Page }>;
+  private userAgent: string;
   /** Requests actually sent to the API during this process's life. */
   requestsSent = 0;
 
@@ -65,7 +69,10 @@ export class CommunityArchiveClient {
     if (!o.apiKey) throw new Error("Community Archive API key is missing.");
     this.apiKey = o.apiKey;
     this.baseUrl = (o.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
-    this.fetchImpl = o.fetchImpl ?? fetch;
+    // Wrap the global so it is never called with `this` bound to the client (Workers reject that).
+    this.fetchImpl = o.fetchImpl ?? ((input, init) => fetch(input, init));
+    this.cache = o.cache ?? new Map();
+    this.userAgent = o.userAgent ?? "community-archive-mcp/0.2";
     this.perMinute = o.perMinute ?? 58;
     this.maxInFlight = o.maxInFlight ?? 2;
     this.maxRetries = o.maxRetries ?? 4;
@@ -87,7 +94,7 @@ export class CommunityArchiveClient {
 
   async get<T = Json>(path: string, params: Params = {}, opts: { cache?: boolean } = {}): Promise<Page<T>> {
     const url = this.url(path, params);
-    const useCache = opts.cache !== false;
+    const useCache = opts.cache !== false && !path.startsWith("/me");
     if (useCache) {
       const hit = this.cache.get(url);
       if (hit && this.now() - hit.at < this.cacheTtlMs) return hit.value as Page<T>;
@@ -148,7 +155,7 @@ export class CommunityArchiveClient {
       try {
         this.requestsSent++;
         res = await this.fetchImpl(url, {
-          headers: { Authorization: `Bearer ${this.apiKey}`, Accept: "application/json", "User-Agent": "community-archive-mcp/0.1" },
+          headers: { Authorization: `Bearer ${this.apiKey}`, Accept: "application/json", "User-Agent": this.userAgent },
         });
       } catch (e: any) {
         this.release();

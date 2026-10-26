@@ -1,25 +1,32 @@
 {
   "name": "community-archive-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for the Community Archive API v1, with receipts, threads, phrase timelines and people search",
-  "main": "dist/index.js",
+  "main": "dist/stdio.js",
   "scripts": {
     "build": "tsc",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.worker.json",
     "test": "npm run build && node --test test/*.test.mjs",
-    "start": "node dist/index.js"
+    "test:e2e": "node test/e2e/run.mjs",
+    "start": "node dist/stdio.js",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
   },
   "license": "MIT",
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.3",
     "@modelcontextprotocol/sdk": "1.32.1",
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20261009.1",
     "@types/node": "22.18.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "wrangler": "4.148.0"
   },
   "type": "module",
   "bin": {
-    "community-archive-mcp": "dist/index.js"
+    "community-archive-mcp": "dist/stdio.js"
   },
   "engines": {
     "node": ">=20"

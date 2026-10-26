@@ -1,82 +1,99 @@
-# community-archive-mcp
+# Community Archive connector
 
-An MCP server for the [Community Archive](https://www.community-archive.org) API v1, the open database of uploaded Twitter/X archives. It wraps the keyed API in a small set of tools any MCP client can use, and adds the queries people usually want but the API does not offer directly: dated receipts for a tweet, thread reconstruction, "who said it first", phrase timelines, people search by name or topic, and follow-graph overlap.
+An MCP server for the [Community Archive](https://www.community-archive.org), the open database of uploaded Twitter/X archives. It runs two ways from the same code:
 
-The legacy Supabase REST API is retired on 2026-11-19. This server only uses API v1 (`https://analytics.community-archive.org/v1`).
+- **Hosted connector** (Cloudflare Worker). People paste one URL into Claude, click **Connect**, and enter their own Community Archive API key on a sign-in page. Nothing to install.
+- **Local server** (stdio). For people who'd rather run it on their own machine.
 
-## Setup
-
-1. Create a key at <https://www.community-archive.org/settings/api-keys>.
-2. Build:
-
-   ```bash
-   npm install
-   npm run build
-   ```
-
-3. Give the server the key, one of:
-   - `CA_API_KEY=cak_...` (or `COMMUNITY_ARCHIVE_API_KEY`)
-   - `CA_ENV_FILE=/path/to/.env`, a dotenv file that contains either variable. This keeps the key out of client config files.
-
-### Claude desktop
-
-Add to `claude_desktop_config.json` under `mcpServers`:
-
-```json
-"community-archive": {
-  "command": "node",
-  "args": ["/ABSOLUTE/PATH/community-archive-mcp/dist/index.js"],
-  "env": { "CA_ENV_FILE": "~/.hermes/.env" }
-}
-```
-
-### Claude Code
-
-```bash
-claude mcp add community-archive -e CA_ENV_FILE=~/.hermes/.env -- node /ABSOLUTE/PATH/community-archive-mcp/dist/index.js
-```
+Both use the archive's keyed API v1 (`https://analytics.community-archive.org/v1`). The legacy Supabase REST API is retired on 2026-11-19 and isn't used.
 
 ## Tools
 
 All tools are read-only.
 
-### API v1
+**API v1**
 
 | Tool | Route | Notes |
 | --- | --- | --- |
 | `ca_me` | `GET /me` | The key and its limits. |
 | `ca_get_tweets` | `GET /tweets/{id}`, `GET /tweets?ids=` | 1–100 IDs **or status URLs**; reports which are missing. |
 | `ca_search_tweets` | `GET /tweets/search` | Full text, `from_user`, `reply_to_user`, `since`/`until`, offset paging. |
-| `ca_account` | `GET /accounts/{account}`, `GET /accounts?usernames=|ids=` | Accepts `@handle` and profile URLs. |
-| `ca_account_tweets` | `GET /accounts/{account}/tweets` | Order, date range, skip replies/retweets, multi-page in one call. |
-| `ca_tweets_window` | `GET /tweets?since=&until=` | Everything in a ≤31-day window. |
-| `ca_account_relations` | `GET /accounts/{account}/likes|followers|following` | Archive-derived edges. |
+| `ca_account` | `GET /accounts/{account}`, `GET /accounts?usernames=\|ids=` | Accepts `@handle` and profile URLs. |
+| `ca_account_tweets` | `GET /accounts/{account}/tweets` | Order, date range, skip replies/retweets, several pages per call. |
+| `ca_tweets_window` | `GET /tweets?since=&until=` | Everything in a window of up to 31 days. |
+| `ca_account_relations` | `GET /accounts/{account}/likes\|followers\|following` | Archive-derived edges. |
 | `ca_members` | `GET /members` | Current members. |
 
-Tweets come back **compact** by default (id, permalink, user, date, text with t.co links expanded, counts, reply/quote pointers). Pass `format: "full"` for every API field.
+Tweets come back **compact** by default (id, permalink, user, date, text with t.co links expanded, counts, reply and quote pointers). Pass `format: "full"` for every API field.
 
-### Extensions
+**Built on top**
 
-| Tool | What it does | How |
-| --- | --- | --- |
-| `ca_receipt` | Dated proof record for up to 25 tweets: exact text, timestamp, permalink, author, SHA-256 over `kind\|date\|url\|quote`, and the API `request_id` as provenance. | `GET /tweets/{id}`. The output is the source shape Receipt Cuts animates, and the hash is the one printed on the receipt. |
-| `ca_thread` | The reply chain above a tweet plus the author's own continuation below it. | Walks `reply_to_tweet_id` upward; reads the author's timeline for a few days after and keeps replies in the same conversation. Notes parents that are not in the archive. |
-| `ca_first_said` | Earliest archived uses of a word or phrase, overall or by one person. | Scans search results (up to 5,000) and sorts by date. Says whether the scan was complete. |
-| `ca_phrase_timeline` | Counts per day/week/month/year, first and latest use, top authors. | Same scan, bucketed. Replaces the old `word_occurrences` RPC, which v1 dropped. |
-| `ca_who_talks_about` | People search by topic: authors ranked by how often they tweet about it, with first mention and best-received tweet. | Search scan, grouped by author. |
-| `ca_find_people` | People search by name: fuzzy, accent-insensitive match on handle and display name. | Caches the member directory for 6 hours; falls back to a direct account lookup for exact handles of non-members. |
-| `ca_relation_overlap` | Shared followers or following between two accounts, with Jaccard similarity. | Pages both edge lists. |
+| Tool | What it does |
+| --- | --- |
+| `ca_receipt` | Dated proof record of up to 25 tweets: exact text, timestamp, permalink, author, a SHA-256 over `kind\|date\|url\|quote`, and the API `request_id` as provenance. |
+| `ca_thread` | The reply chain above a tweet plus the author's own continuation below it. Notes parents that aren't in the archive. |
+| `ca_first_said` | Earliest archived uses of a phrase, overall or by one person. Says when the scan was incomplete. |
+| `ca_phrase_timeline` | Counts per day, week, month or year, with first and latest use and top authors. Covers what the retired `word_occurrences` RPC did. |
+| `ca_who_talks_about` | People ranked by how often they tweet about a topic, with first mention and best-received tweet. |
+| `ca_find_people` | People by partial name or handle: fuzzy, accent-insensitive, over the member list (v1 has no account search). |
+| `ca_relation_overlap` | Shared followers or following between two accounts, with Jaccard similarity. |
 
-## Limits and behavior
+## Using the hosted connector
 
-- The API allows 60 requests a minute, 20,000 a day, and 2 in flight per key. The client keeps under those, retries `429`/`503` after `Retry-After`, and turns `422` into "narrow the query (add since/until or from_user)".
-- GET responses are cached in memory for 10 minutes.
-- Scanning tools stop at their `scan` limit. When the scan is incomplete they say so, so a "first said" answer is never presented as definitive when it is not.
-- Deleted and opted-out tweets are omitted by the API; a missing tweet is reported as missing, not as an error in the whole call.
-- The key never appears in tool output or logs.
+In Claude: **Customize → Connectors → Add custom connector**, paste `https://<host>/mcp`, then **Connect**. A page asks for your key ([create one here](https://www.community-archive.org/settings/api-keys)). On Team and Enterprise plans an Owner adds the connector first, under **Organization settings → Connectors**, and each member then connects with their own key.
+
+Claude Code:
+
+```bash
+claude mcp add --transport http community-archive https://<host>/mcp
+```
+
+Clients that can't do OAuth can send the key directly: `Authorization: Bearer cak_...`. See [How sign-in works](#how-sign-in-works) for the trade-off.
+
+## Running locally (stdio)
+
+```bash
+npm install && npm run build
+CA_API_KEY=cak_... node dist/stdio.js
+```
+
+Or point `CA_ENV_FILE` at a dotenv file containing `CA_API_KEY` or `COMMUNITY_ARCHIVE_API_KEY`, which keeps the key out of client config. Claude desktop:
+
+```json
+"community-archive": {
+  "command": "node",
+  "args": ["/ABSOLUTE/PATH/dist/stdio.js"],
+  "env": { "CA_ENV_FILE": "~/.config/community-archive/.env" }
+}
+```
+
+## How sign-in works
+
+The hosted connector is its own OAuth 2.1 authorization server, built on [`@cloudflare/workers-oauth-provider`](https://github.com/cloudflare/workers-oauth-provider):
+
+1. Claude's request to `/mcp` gets a `401` pointing at the server's metadata.
+2. Claude registers itself, either with a Client ID Metadata Document ("Use Claude's published identity") or Dynamic Client Registration ("Register automatically"). Both are supported.
+3. The user lands on `/authorize`, which shows the app asking, where access will be sent, and a field for their key.
+4. The server checks the key with `GET /v1/me`. A wrong or malformed key brings the page back with an error.
+5. The key is stored only inside the grant's `props`, which the library encrypts with a key that only that grant's tokens can unwrap. Tokens are stored only as hashes. Claude receives its own access and refresh tokens, never the archive key.
+6. Each MCP request decrypts the key and calls the archive with it.
+
+**Direct keys.** With `ALLOW_DIRECT_KEYS` on, `/mcp` also accepts `Authorization: Bearer cak_...`. The key is checked against `/v1/me` (remembered for five minutes by a hash) and used for that request only. This is token passthrough, which the MCP authorization spec discourages; it exists for scripts and clients without OAuth. Set `ALLOW_DIRECT_KEYS` to `"false"` to turn it off.
+
+**Limits.** Every call counts against the user's own key (60 a minute, 20,000 a day). The hosted server retries `429`/`503` briefly, then reports the limit to the assistant rather than waiting. Archive responses are public and identical across keys, so isolates share a short in-memory cache.
 
 ## Development
 
 ```bash
-npm test   # builds, then runs the tests against an in-memory fake of API v1
+npm test          # unit tests: every tool against an in-memory fake of API v1
+npm run test:e2e  # runs the Worker locally and walks the whole connect flow (17 checks)
+npm run typecheck # both the Node and the Worker builds
 ```
+
+The end-to-end test starts `wrangler dev --env test` against a mock archive on port 8798 and checks discovery, registration, the key page, wrong and malformed keys, PKCE token exchange, MCP calls, refresh, direct keys, cancel, forged forms, unregistered redirects, and that the plaintext key never appears in KV storage or logs.
+
+Deploying: [DEPLOY.md](DEPLOY.md). Privacy policy: [PRIVACY.md](PRIVACY.md). Handing the project to the Community Archive team: [HANDOFF.md](HANDOFF.md).
+
+## License
+
+MIT
