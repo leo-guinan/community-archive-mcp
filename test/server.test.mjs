@@ -124,6 +124,17 @@ test("get tweets by URL, reports missing, expands t.co", async () => {
   assert.equal(r.json.tweets[0].url, "https://x.com/leo_guinan/status/2");
 });
 
+test("media links are dropped from quotes and self-replies are labelled as threads", async () => {
+  const { call } = await connect();
+  tweets.push(T("6", "leo_guinan", "2026-08-29T12:59:41.000Z", "Receipts added together. https://t.co/AHGr2HY9gx",
+    { media: [{ media_id: "9", media_url: "https://pbs.twimg.com/media/x.jpg", media_type: "photo" }] }));
+  const [r6, r3] = (await call("ca_receipt", { refs: ["6", "3"] })).json.receipts;
+  assert.equal(r6.quote, "Receipts added together.");
+  assert.equal(r6.title, "Post");
+  assert.equal(r3.title, "Thread");
+  tweets.pop();
+});
+
 test("receipt hash matches the Receipt Cuts formula", async () => {
   const { call } = await connect();
   const r = await call("ca_receipt", { refs: ["2", "404404"] });

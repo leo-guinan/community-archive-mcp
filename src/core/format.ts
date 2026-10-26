@@ -49,7 +49,9 @@ export function expandText(t: Tweet): string {
     const short = m?.url ?? m?.short_url;
     if (short && typeof short === "string") text = text.split(short).join("").trim();
   }
-  return text.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  // API v1 media entries carry no t.co link, so drop the one Twitter appends for attached media.
+  if (t.media?.length) text = text.replace(/(\s*https:\/\/t\.co\/[A-Za-z0-9]+)+\s*$/, "");
+  return text.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
 }
 
 export function compactTweet(t: Tweet) {
@@ -90,7 +92,14 @@ export function toReceipt(t: Tweet, meta: { request_id?: string; fetched_at?: st
     kind,
     date,
     created_at: t.created_at,
-    title: t.reply_to_username ? `Reply to @${t.reply_to_username}` : "Post",
+    title:
+      t.reply_to_username && t.reply_to_username === t.username
+        ? "Thread"
+        : t.reply_to_username
+          ? `Reply to @${t.reply_to_username}`
+          : t.reply_to_tweet_id
+            ? "Reply"
+            : "Post",
     author: t.account_display_name ?? t.username ?? "",
     handle: t.username ? `@${t.username}` : "",
     quote,
