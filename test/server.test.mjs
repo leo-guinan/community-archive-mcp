@@ -140,6 +140,10 @@ test("thread walks up and collects the author's continuation", async () => {
   const { call } = await connect();
   const r = await call("ca_thread", { ref: "3" });
   assert.deepEqual(r.json.tweets.map((t) => t.id), ["2", "3", "4"]);
+  // API v1 often returns conversation_id: null; the reply chain alone must still link the thread.
+  for (const t of tweets) t.conversation_id = null;
+  const noConv = await call("ca_thread", { ref: "2", format: "compact" });
+  assert.deepEqual(noConv.json.tweets.map((t) => t.id), ["2", "3", "4"]);
   const orphan = await call("ca_thread", { ref: "5" });
   assert.match(orphan.json.notes[0], /999 by @ghost is not in the archive/);
 });
@@ -151,6 +155,18 @@ test("first said scans all pages and sorts oldest first", async () => {
   assert.deepEqual(r.json.earliest.map((t) => t.id), ["1", "2"]);
   const mine = await call("ca_first_said", { q: "movies snapshots", from_user: "@leo_guinan" });
   assert.deepEqual(mine.json.earliest.map((t) => t.id), ["2"]);
+});
+
+test("quoted phrases are sent as plain words and enforced on the results", async () => {
+  const { call, api } = await connect();
+  const r = await call("ca_first_said", { q: '"movies, not snapshots"', n: 5 });
+  const sent = api.calls.filter((c) => c.startsWith("/v1/tweets/search")).map((c) => new URL("http://x" + c).searchParams.get("q"));
+  assert.ok(sent.length && sent.every((q) => q === "movies snapshots"), JSON.stringify(sent));
+  assert.deepEqual(r.json.earliest.map((t) => t.id), ["1", "2", "5"]);
+  assert.deepEqual(r.json.sent, { q: "movies snapshots", exact_phrases: ["movies not snapshots"] });
+  const wrongOrder = await call("ca_search_tweets", { q: '"snapshots movies"' });
+  assert.equal(wrongOrder.json.tweets.length, 0);
+  assert.equal(wrongOrder.json.page_results_before_phrase_filter, 3);
 });
 
 test("phrase timeline buckets by year and ranks authors", async () => {

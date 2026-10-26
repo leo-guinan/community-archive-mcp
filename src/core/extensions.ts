@@ -1,8 +1,8 @@
 // Features built on top of API v1 that the API does not offer directly.
 import { CommunityArchiveClient, CAError } from "./client.js";
-import { Tweet, bucketKey, compactTweet, parseTweetRef, toReceipt } from "./format.js";
+import { Tweet, bucketKey, compactTweet, expandText, parseTweetRef, toReceipt } from "./format.js";
 
-export const SEARCH_PAGE = 100;
+export const SEARCH_PAGE = 50; // API v1 returns at most 50 search results per page
 export const SEARCH_MAX_OFFSET = 5000;
 
 export interface SearchParams {
@@ -13,8 +13,31 @@ export interface SearchParams {
   until?: string;
 }
 
-/** Page through /tweets/search up to `scan` results. */
+// API v1 search requires every word to appear. It ignores quotes and operators (OR, -word),
+// and a common word such as "not" makes the whole search return nothing. So we send the
+// meaningful words, and turn quoted parts into exact-phrase filters applied to the results.
+const QUERY_STOPWORDS = new Set(
+  "a an and are as at be but by for from has have he her his i in is it its me my no not of on or our she so that the their them they this to us was we were what when which who will with you your".split(" "),
+);
+const normText = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}#@']+/gu, " ").trim();
+
+export function prepareQuery(q: string): { apiQuery: string; phrases: string[] } {
+  const phrases = [...q.matchAll(/"([^"]+)"/g)].map((m) => normText(m[1])).filter(Boolean);
+  const words = normText(q.replace(/"/g, " ")).split(/\s+/).filter(Boolean);
+  const kept = words.filter((w) => !QUERY_STOPWORDS.has(w));
+  return { apiQuery: (kept.length ? kept : words).join(" "), phrases };
+}
+
+export function matchesPhrases(t: Tweet, phrases: string[]): boolean {
+  if (!phrases.length) return true;
+  const text = normText(expandText(t));
+  return phrases.every((p) => text.includes(p));
+}
+
+/** Page through /tweets/search up to `scan` results, then apply any exact-phrase filter. */
 export async function scanSearch(c: CommunityArchiveClient, p: SearchParams, scan: number) {
+  const { apiQuery, phrases } = prepareQuery(p.q);
+  p = { ...p, q: apiQuery };
   const tweets: Tweet[] = [];
   const request_ids: string[] = [];
   let offset = 0;
@@ -35,7 +58,13 @@ export async function scanSearch(c: CommunityArchiveClient, p: SearchParams, sca
   // dedupe
   const seen = new Set<string>();
   const unique = tweets.filter((t) => (seen.has(t.tweet_id) ? false : (seen.add(t.tweet_id), true)));
-  return { tweets: unique, exhausted, request_ids };
+  return {
+    tweets: unique.filter((t) => matchesPhrases(t, phrases)),
+    exhausted,
+    request_ids,
+    scanned: unique.length,
+    sent: { q: apiQuery, ...(phrases.length ? { exact_phrases: phrases } : {}) },
+  };
 }
 
 export async function getTweet(c: CommunityArchiveClient, ref: string) {
@@ -75,16 +104,17 @@ export async function thread(c: CommunityArchiveClient, ref: string, opts: { max
   }
   const root = ancestors[0] ?? focus;
 
-  // Self-thread continuation: same author, same conversation, replying within the chain.
+  // Self-thread continuation: the author's own later tweets that reply into the chain.
+  // (conversation_id is often null in API v1, so the reply chain is what links them.)
   const descendants: Tweet[] = [];
-  if (focus.username && focus.conversation_id) {
+  if (focus.account_id || focus.username) {
     const since = focus.created_at;
     const until = new Date(new Date(focus.created_at).getTime() + daysForward * 86_400_000).toISOString();
     const { items } = await c.paged<Tweet>(`/accounts/${focus.account_id ?? focus.username}/tweets`, { order: "asc", since, until, limit: 200 }, 5);
     const chain = new Set([focus.tweet_id]);
     for (const t of items.sort((a, b) => a.created_at.localeCompare(b.created_at))) {
       if (t.tweet_id === focus.tweet_id) continue;
-      if (t.conversation_id === focus.conversation_id && t.reply_to_tweet_id && chain.has(t.reply_to_tweet_id)) {
+      if (t.reply_to_tweet_id && chain.has(t.reply_to_tweet_id)) {
         descendants.push(t);
         chain.add(t.tweet_id);
       }
@@ -101,15 +131,17 @@ export async function thread(c: CommunityArchiveClient, ref: string, opts: { max
 
 /** Earliest occurrences of a phrase among search results. */
 export async function firstSaid(c: CommunityArchiveClient, p: SearchParams, opts: { scan?: number; n?: number } = {}) {
-  const { tweets, exhausted } = await scanSearch(c, p, opts.scan ?? 1000);
+  const { tweets, exhausted, scanned, sent } = await scanSearch(c, p, opts.scan ?? 1000);
   const sorted = [...tweets].sort((a, b) => a.created_at.localeCompare(b.created_at));
   return {
     query: p,
-    scanned: tweets.length,
+    scanned,
+    matched: tweets.length,
+    sent,
     complete: exhausted,
     caveat: exhausted
       ? null
-      : "Search returned more results than were scanned. These are the earliest among the scanned results; add until= to look further back.",
+      : `Search returns newest results first and only the newest ${scanned} were scanned, so these may not be the earliest uses. Set until= to an earlier date to look further back.`,
     earliest: sorted.slice(0, opts.n ?? 5).map((t) => ({ ...compactTweet(t), receipt_sha256: toReceipt(t).sha256 })),
   };
 }
@@ -121,7 +153,7 @@ export async function phraseTimeline(
   opts: { scan?: number; bucket?: "day" | "week" | "month" | "year"; top?: number } = {},
 ) {
   const bucket = opts.bucket ?? "month";
-  const { tweets, exhausted } = await scanSearch(c, p, opts.scan ?? 2000);
+  const { tweets, exhausted, scanned, sent } = await scanSearch(c, p, opts.scan ?? 2000);
   const buckets = new Map<string, number>();
   const authors = new Map<string, { count: number; first: string; likes: number }>();
   for (const t of tweets) {
@@ -137,8 +169,13 @@ export async function phraseTimeline(
   const sorted = [...tweets].sort((a, b) => a.created_at.localeCompare(b.created_at));
   return {
     query: p,
-    scanned: tweets.length,
+    scanned,
+    matched: tweets.length,
+    sent,
     complete: exhausted,
+    caveat: exhausted
+      ? null
+      : `Search returns newest results first and only the newest ${scanned} were scanned, so earlier periods are missing or undercounted. Set since=/until= to cover the period you need.`,
     bucket,
     series: [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([period, count]) => ({ period, count })),
     first: sorted[0] ? compactTweet(sorted[0]) : null,
@@ -152,7 +189,7 @@ export async function phraseTimeline(
 
 /** People who tweet about a topic, ranked by how often and how well it landed. */
 export async function whoTalksAbout(c: CommunityArchiveClient, p: SearchParams, opts: { scan?: number; top?: number } = {}) {
-  const { tweets, exhausted } = await scanSearch(c, p, opts.scan ?? 500);
+  const { tweets, exhausted, scanned, sent } = await scanSearch(c, p, opts.scan ?? 500);
   const by = new Map<string, { name?: string; count: number; likes: number; first: string; best?: Tweet }>();
   for (const t of tweets) {
     const u = t.username ?? t.account_id ?? "?";
@@ -165,8 +202,13 @@ export async function whoTalksAbout(c: CommunityArchiveClient, p: SearchParams, 
   }
   return {
     query: p,
-    scanned: tweets.length,
+    scanned,
+    matched: tweets.length,
+    sent,
     complete: exhausted,
+    caveat: exhausted
+      ? null
+      : `Search returns newest results first and only the newest ${scanned} were scanned, so this reflects recent activity. Set since=/until= for another period.`,
     people: [...by.entries()]
       .sort((a, b) => b[1].count - a[1].count || b[1].likes - a[1].likes)
       .slice(0, opts.top ?? 15)

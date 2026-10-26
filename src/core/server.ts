@@ -80,25 +80,34 @@ export function buildServer(c: CommunityArchiveClient) {
     "ca_search_tweets",
     {
       title: "Search tweets",
-      description: "Full-text search across the archive. Filter by author, by who was replied to, and by date. Pages with offset (max 5,000).",
+      description: "Full-text search across the archive: every word must appear. Filter by author, by who was replied to, and by date. Pages with offset (max 5,000).",
       inputSchema: {
-        q: z.string().min(1).describe("Search terms. Use quotes for a phrase."),
+        q: z.string().min(1).describe("Words that must all appear. Put an exact phrase in double quotes to keep only tweets containing it. OR and -word are not supported."),
         from_user: z.string().optional().describe("Only tweets by this username."),
         reply_to_user: z.string().optional().describe("Only replies to this username."),
         since,
         until,
-        limit: z.number().int().min(1).max(100).optional().describe("Results per page (default 25)."),
+        limit: z.number().int().min(1).max(50).optional().describe("Results per page (default 25, max 50)."),
         offset: z.number().int().min(0).max(5000).optional(),
         format,
       },
       annotations: RO,
     },
     wrap(async (a: any) => {
+      const pq = ext.prepareQuery(a.q);
       const page = await c.get<Tweet[]>("/tweets/search", {
-        q: a.q, from_user: a.from_user && normAccount(a.from_user), reply_to_user: a.reply_to_user && normAccount(a.reply_to_user),
+        q: pq.apiQuery, from_user: a.from_user && normAccount(a.from_user), reply_to_user: a.reply_to_user && normAccount(a.reply_to_user),
         since: a.since, until: a.until, limit: a.limit ?? 25, offset: a.offset,
       });
-      return { tweets: shape(page.data ?? [], a.format), next_offset: page.next_offset ?? null, request_id: page.request_id };
+      const raw = page.data ?? [];
+      const kept = raw.filter((t) => ext.matchesPhrases(t, pq.phrases));
+      return {
+        tweets: shape(kept, a.format),
+        next_offset: page.next_offset ?? null,
+        sent_query: pq.apiQuery,
+        ...(pq.phrases.length ? { exact_phrases: pq.phrases, page_results_before_phrase_filter: raw.length } : {}),
+        request_id: page.request_id,
+      };
     }),
   );
 
@@ -241,7 +250,7 @@ export function buildServer(c: CommunityArchiveClient) {
   );
 
   const searchShape = {
-    q: z.string().min(1).describe("Word or phrase. Use quotes for an exact phrase."),
+    q: z.string().min(1).describe("Words that must all appear. Put an exact phrase in double quotes to keep only tweets containing it."),
     from_user: z.string().optional(),
     reply_to_user: z.string().optional(),
     since,

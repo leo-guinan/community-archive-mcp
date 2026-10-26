@@ -9,14 +9,14 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "kv_namespaces": [
     // Replace the id with the one `wrangler kv namespace create OAUTH_KV` prints.
-    { "binding": "OAUTH_KV", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }
+    { "binding": "OAUTH_KV", "id": "63cceaaf059e41eca7279e00a8c3e977" }
   ],
   "vars": {
-    "PUBLIC_URL": "https://community-archive-mcp.REPLACE.workers.dev",
+    "PUBLIC_URL": "https://community-archive-mcp.leo-guinan.workers.dev",
     "CA_API_BASE_URL": "https://analytics.community-archive.org/v1",
     "ALLOW_DIRECT_KEYS": "true",
-    "OPERATOR": "REPLACE_WITH_OPERATOR_NAME",
-    "CONTACT": "REPLACE_WITH_CONTACT_EMAIL",
+    "OPERATOR": "Leo Guinan",
+    "CONTACT": "leo@ideanexusventures.com",
     "REPO_URL": ""
   },
   // Daily cleanup of expired grants, tokens and client registrations.
