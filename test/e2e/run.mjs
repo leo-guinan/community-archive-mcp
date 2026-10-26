@@ -10,7 +10,7 @@ import { GOOD_KEY, startMockApi } from "./mock-api.mjs";
 
 const WORKER = "http://localhost:8799";
 const REDIRECT = "https://claude.ai/api/mcp/auth_callback";
-const STATE_DIR = ".wrangler/e2e-state";
+const STATE_DIR = process.env.E2E_STATE_DIR || ".wrangler/e2e-state";
 let passed = 0;
 const step = (name) => console.log(`✓ ${name}`) || passed++;
 
