@@ -58,7 +58,7 @@ export function makeReceiptScene(receipt, { W = 1080, H = 1920, asOf, bg = "ink"
   if (bg) drawBackground(bgCanvas.getContext("2d"), W, H, bg);
 
   const ts = L.anchors.timestamp, qr = L.anchors.qr, q = L.anchors.quote;
-  const fitS = Math.min(b0, (H * 0.86) / L.height, (W * 0.9) / RW);
+  const fitS = Math.min(b0, (H * (footer ? 0.8 : 0.86)) / L.height, (W * 0.9) / RW); // leave room for the footer
   const cams = {
     fit: { s: fitS, cy: L.height / 2 },
     ts: { s: Math.min((W * 0.92) / (ts.w + 70), b0 * 1.7), cy: ts.y + ts.h / 2 },
@@ -208,7 +208,7 @@ export function makeReceiptScene(receipt, { W = 1080, H = 1920, asOf, bg = "ink"
         ctx.font = font.sans(600, Math.round(30 * ui));
         ctx.fillStyle = bg === "white" ? "#1d1f2b" : "rgba(255,255,255,0.85)";
         const fw = ctx.measureText(footer).width;
-        ctx.fillText(footer, W / 2 - fw / 2, H - 60 * ui);
+        ctx.fillText(footer, W / 2 - fw / 2, H - 40 * ui);
         ctx.restore();
       }
     }
