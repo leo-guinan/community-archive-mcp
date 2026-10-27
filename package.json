@@ -30,5 +30,21 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leo-guinan/community-archive-mcp.git"
+  },
+  "homepage": "https://github.com/leo-guinan/community-archive-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/leo-guinan/community-archive-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "community-archive",
+    "twitter",
+    "claude",
+    "cloudflare-workers"
+  ]
 }

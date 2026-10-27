@@ -24,5 +24,14 @@
   },
   "devDependencies": {
     "jsqr": "1.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leo-guinan/community-archive-mcp.git",
+    "directory": "examples/receipt-video"
+  },
+  "homepage": "https://github.com/leo-guinan/community-archive-mcp/tree/main/examples/receipt-video#readme",
+  "bugs": {
+    "url": "https://github.com/leo-guinan/community-archive-mcp/issues"
   }
 }

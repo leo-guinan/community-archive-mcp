@@ -7,6 +7,26 @@ An MCP server for the [Community Archive](https://www.community-archive.org), th
 
 Both use the archive's keyed API v1 (`https://analytics.community-archive.org/v1`). The legacy Supabase REST API is retired on 2026-11-19 and isn't used.
 
+## Try it
+
+A hosted instance is running at:
+
+```
+https://community-archive-mcp.leo-guinan.workers.dev/mcp
+```
+
+In Claude, go to **Customize → Connectors → Add custom connector**, paste that URL, click **Connect**, and enter your key from [community-archive.org/settings/api-keys](https://www.community-archive.org/settings/api-keys). Then ask something like *"Find my first tweet about build in public and give me a receipt."*
+
+This is an independent project, not an official Community Archive service. The plan is to hand it to the Community Archive maintainers ([HANDOFF.md](HANDOFF.md)).
+
+<p>
+  <img src="docs/demo-ask.png" width="260" alt="Asking Claude for a receipt: ca_first_said and ca_receipt run and return the tweet's timestamp, text, permalink and hash">
+  <img src="docs/receipt-timestamp.png" width="260" alt="The printed receipt with the posting timestamp highlighted">
+  <img src="docs/sticker-preview.png" width="290" alt="The receipt as a die-cut sticker with a QR code to the original tweet">
+</p>
+
+Receipts become videos and stickers with the [receipt-video example](examples/receipt-video).
+
 ## Tools
 
 All tools are read-only.

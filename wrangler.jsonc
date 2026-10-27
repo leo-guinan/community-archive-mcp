@@ -17,7 +17,7 @@
     "ALLOW_DIRECT_KEYS": "true",
     "OPERATOR": "Leo Guinan",
     "CONTACT": "leo@ideanexusventures.com",
-    "REPO_URL": ""
+    "REPO_URL": "https://github.com/leo-guinan/community-archive-mcp"
   },
   // Daily cleanup of expired grants, tokens and client registrations.
   "triggers": { "crons": ["17 7 * * *"] },

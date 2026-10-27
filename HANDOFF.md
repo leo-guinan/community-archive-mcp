@@ -16,7 +16,7 @@ This connector was built outside the Community Archive project so people could u
 
 ## Ways to take it over
 
-1. **Move the repository** to the Community Archive organization on GitHub.
+1. **Transfer the repository** ([leo-guinan/community-archive-mcp](https://github.com/leo-guinan/community-archive-mcp)) to the Community Archive organization on GitHub. GitHub redirects the old URL after a transfer.
 2. **Deploy under your own Cloudflare account and domain**, for example `mcp.community-archive.org`, following [DEPLOY.md](DEPLOY.md). Then point people at the new URL. The interim deployment can redirect its landing page there and be retired after a notice period. Existing users reconnect once.
 3. **Optionally, sign in with Community Archive accounts instead of pasted keys.** The sign-in page is the one piece designed to be replaced. If the archive offered OAuth (or an endpoint that mints a key for a signed-in member), `/authorize` could send people to community-archive.org and receive a key or token back, using the library's `beginUpstream()` and `finishUpstream()` helpers. Users would then never handle a key. The rest of the server would not change.
 4. **Submit it to the Claude Connectors Directory** as the official connector ([DEPLOY.md](DEPLOY.md) lists what's needed).
