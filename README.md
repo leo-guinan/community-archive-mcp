@@ -82,6 +82,10 @@ The hosted connector is its own OAuth 2.1 authorization server, built on [`@clou
 
 **Limits.** Every call counts against the user's own key (60 a minute, 20,000 a day). The hosted server retries `429`/`503` briefly, then reports the limit to the assistant rather than waiting. Archive responses are public and identical across keys, so isolates share a short in-memory cache.
 
+## Examples
+
+[`examples/receipt-video`](examples/receipt-video) turns `ca_receipt` output into a printed-receipt MP4, with the timestamp highlighted and a QR code that opens the original post, and into a die-cut sticker PNG. It also renders a demo video of the whole flow.
+
 ## Development
 
 ```bash
